@@ -27,6 +27,7 @@ A ULID however:
 
 ```sql
 SELECT generate_ulid(); -- Output: 01D45VGTV648329YZFE7HYVGWC
+SELECT parse_ulid_timestamp('01D45VGTV648329YZFE7HYVGWC'); -- Output: 2019-02-20 16:23:49.35+00
 ```
 
 ## Specification
