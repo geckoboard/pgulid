@@ -18,7 +18,7 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE FUNCTION generate_ulid()
+CREATE OR REPLACE FUNCTION generate_ulid()
 RETURNS TEXT
 AS $$
 DECLARE
@@ -77,3 +77,42 @@ END
 $$
 LANGUAGE plpgsql
 VOLATILE;
+
+
+CREATE OR REPLACE FUNCTION parse_ulid_timestamp(ulid TEXT) RETURNS TIMESTAMP WITH TIME ZONE
+AS $$
+DECLARE
+  -- Crockford's Base32
+  -- Drop the 0 because strpos() returns 0 for not-found
+  -- We've pre-validated already, so this is safe
+  encoding   TEXT = '123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  ts         BIGINT;
+  v          CHAR[];
+BEGIN
+  ulid = upper(ulid);
+
+  IF NOT ulid ~ '^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$' THEN
+    RAISE EXCEPTION 'Invalid ULID: %', ulid;
+  END IF;
+
+  -- first 10 ULID characters are the timestamp
+  v = regexp_split_to_array(substring(ulid for 10), '');
+
+  -- base32 is 5 bits / character
+  -- posix milliseconds (6 bytes)
+  ts = (strpos(encoding, v[1])::bigint << 45)
+    + (strpos(encoding, v[2])::bigint << 40)
+    + (strpos(encoding, v[3])::bigint << 35)
+    + (strpos(encoding, v[4])::bigint << 30)
+    + (strpos(encoding, v[5]) << 25)
+    + (strpos(encoding, v[6]) << 20)
+    + (strpos(encoding, v[7]) << 15)
+    + (strpos(encoding, v[8]) << 10)
+    + (strpos(encoding, v[9]) << 5)
+    + strpos(encoding, v[10]);
+
+  RETURN to_timestamp(ts / 1000.0);
+END
+$$
+LANGUAGE plpgsql
+IMMUTABLE;
